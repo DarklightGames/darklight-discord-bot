@@ -1,0 +1,1 @@
+This Discord bot fetches and displays player info from *Darkest Hour: Europe '44-'45* game servers.
