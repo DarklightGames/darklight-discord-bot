@@ -1,7 +1,15 @@
-version: "3.8"
+version: "3.3"
 
 services:
   bot:
+    container_name: daklight-discord-bot
+    image: daklight-discord-bot
     build:
       context: .
       dockerfile: Dockerfile
+    secrets:
+      - token
+
+secrets:
+  token:
+    file: secrets/token

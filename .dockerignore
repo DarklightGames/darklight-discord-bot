@@ -1,2 +1,7 @@
-__pycache__
+**/__pycache__
+*.py[cod]
+.git
+.gitignore
 .venv
+secrets
+docker-compose.yaml
