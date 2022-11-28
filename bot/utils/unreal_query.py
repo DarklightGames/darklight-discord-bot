@@ -44,8 +44,8 @@ class ServerInfo:
 
         if len(query_data) > 0:
             self.data = netstruct.unpack(b'<ciciiib$b$b$ii', query_data)
-            self.name = ' '.join(self.data[6].decode('latin-1').split())
-            self.map = self.data[7].decode('latin-1').replace('\xc2\xa0', ' ')
+            self.name = ' '.join(self.data[6].decode('latin-1').split())[:-1]
+            self.map = self.data[7].decode('latin-1').replace('\xc2\xa0', ' ')[:-1]
             self.players = self.data[9]
             self.max_players = self.data[10]
 
