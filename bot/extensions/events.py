@@ -65,14 +65,13 @@ async def enlist(ctx: lightbulb.context.Context) -> None:
         case 'Allies':
             role_to_give = guild.get_role(ALLIES_ROLE_ID)
 
-    await remove_all_event_roles(member)
-
     try:
         await assign_role(member, role_to_give)
     except AlreadyHasRole:
         await ctx.respond(f'You\'re already on **{team}** team!', flags=MessageFlag.EPHEMERAL)
         return
 
+    await remove_all_event_roles(member)
     await ctx.respond(f'{ctx.author.mention} has joined **{team}**!')
 
 
