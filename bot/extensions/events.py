@@ -2,25 +2,82 @@ import hikari
 from hikari import MessageFlag
 import lightbulb
 from lightbulb import commands
-import bot as darklight_bot
-from bot.utils.bulletin import BulletinBoard
-from lightbulb.ext import tasks
-import datetime as dt
+from bot.config import EventSettings
+from bot import config
 from collections import Counter
+from functools import wraps
+import bot as darklight_bot
+import random
+from typing import Any, Sequence
 
-plugin = lightbulb.Plugin('Events')
 
-
-GUILDS=[1044732831710056639]
-ROSTER_CHANNEL=1050800193009876992
-AXIS_ROLE_ID=1050774810529112175
-ALLIES_ROLE_ID=1050774864136507462
-SQUAD_LEADER_ROLE_ID=1050774895019171860
+plugin = lightbulb.Plugin('EventRoster')
 
 
 class AlreadyHasRole(Exception):
     """Member already has the requested role"""
     pass
+
+
+ENLIST_MSG_1 = [
+    'Guys, guys, you guys!',
+    'This just in!',
+    'A little birdy told me,',
+    'Have you heard?',
+    'Psst!',
+    ''
+]
+
+
+ENLIST_MSG_2 = [
+    '{member} has just signed up for **{team}** team.',
+    '{member} has joined **{team}**.',
+    '{member} is now enlisted with **{team}**.'
+]
+
+
+ENLIST_MSG_2_DEFECT = [
+    '{member} has defected to **{team}**.',
+    '{member} has left their team and joined **{team}**.',
+]
+
+
+ENLIST_MSG_3 = [
+    'What a winner!',
+    'The other team is now shambles.',
+    'The enemy team is literally crying right now.',
+    'What a champ!',
+    'Hide your rations!',
+    'An absolute asset!',
+    'Buy him a drink!',
+    'Don\'t tell anyone!',
+    ''
+]
+
+
+def get_random_element(list: Sequence, skip_index: int | None = None) -> Any | None:
+    return next(iter(random.sample(list, 1)), None)
+
+
+def generate_enlist_message(defect: bool = False) -> str:
+    msg: list[str] = []
+
+    for part_choices in (ENLIST_MSG_1, ENLIST_MSG_2_DEFECT if defect else ENLIST_MSG_2, ENLIST_MSG_3):
+        part = get_random_element(part_choices)
+        if part:
+            msg.append(part)
+
+    return ' '.join(msg)
+
+
+# def get_config(func):
+#     @wraps(func)
+#     def decorate(*args, ctx: lightbulb.context.Context, **kwargs):
+#         guild = ctx.get_guild()
+#         conf = config.guilds[guild.id].event_roster
+#         return func(*args, ctx=ctx, event_conf=conf, **kwargs)
+
+#     return decorate
 
 
 async def assign_role(member: hikari.Member, role: hikari.Role) -> None:
@@ -40,7 +97,11 @@ async def remove_roles(member: hikari.Member, *role_ids: hikari.Role) -> None:
 
 
 async def remove_all_event_roles(member: hikari.Member, *roles: hikari.Role) -> None:
-    await remove_roles(member, AXIS_ROLE_ID, ALLIES_ROLE_ID, SQUAD_LEADER_ROLE_ID)
+    conf: EventSettings = darklight_bot.config.event_roster
+    await remove_roles(member, 
+                       conf.axis_role,
+                       conf.allied_role,
+                       conf.sl_role)
 
 
 def has_role(member: hikari.Member, role: hikari.Role) -> bool:
@@ -51,19 +112,22 @@ def has_role(member: hikari.Member, role: hikari.Role) -> bool:
 
 
 @lightbulb.option('team', 'Which team would you like to join?', choices=('Allies', 'Axis'))
-@lightbulb.command('enlist', 'Join a team for the next event', guilds=GUILDS)
+@lightbulb.command('enlist', 'Join a team for the next event', guilds=[darklight_bot.config.guild])
 @lightbulb.implements(commands.SlashCommand)
 async def enlist(ctx: lightbulb.context.Context) -> None:
     team: str = ctx.options.team
     guild: hikari.Guild = ctx.get_guild()
     member: hikari.Member = guild.get_member(ctx.author.id)
     role_to_give: hikari.Role | None
+    conf: EventSettings = darklight_bot.config.event_roster
+    axis_role = guild.get_role(conf.axis_role)
+    allied_role = guild.get_role(conf.allied_role)
 
     match team:
         case 'Axis':
-            role_to_give = guild.get_role(AXIS_ROLE_ID)
+            role_to_give = axis_role
         case 'Allies':
-            role_to_give = guild.get_role(ALLIES_ROLE_ID)
+            role_to_give = allied_role
 
     try:
         await assign_role(member, role_to_give)
@@ -71,11 +135,16 @@ async def enlist(ctx: lightbulb.context.Context) -> None:
         await ctx.respond(f'You\'re already on **{team}** team!', flags=MessageFlag.EPHEMERAL)
         return
 
+    defected: bool = has_role(member, axis_role) | has_role(member, allied_role)
+
     await remove_all_event_roles(member)
-    await ctx.respond(f'{ctx.author.mention} has joined **{team}**!')
+
+    msg = generate_enlist_message(defected).format(member=ctx.author.mention, team=team)
+
+    await ctx.respond(msg)
 
 
-@lightbulb.command('leave-team', 'I want to quit my team', guilds=GUILDS)
+@lightbulb.command('leave-team', 'I want to quit my team', guilds=[darklight_bot.config.guild])
 @lightbulb.implements(commands.SlashCommand)
 async def leave_team(ctx: lightbulb.context.Context) -> None:
     guild: hikari.Guild = ctx.get_guild()
@@ -85,46 +154,49 @@ async def leave_team(ctx: lightbulb.context.Context) -> None:
     await ctx.respond(f'You\'ve quit your team!', flags=MessageFlag.EPHEMERAL)
 
 
-@lightbulb.command('reserve-sl', 'I want to be a squad leader for the next event', guilds=GUILDS)
+@lightbulb.command('reserve-sl', 'I want to be a squad leader for the next event', guilds=[darklight_bot.config.guild])
 @lightbulb.implements(commands.SlashCommand)
 async def reserve_sl(ctx: lightbulb.context.Context) -> None:
     guild: hikari.Guild = ctx.get_guild()
     member: hikari.Member = guild.get_member(ctx.author.id)
+    conf: EventSettings = darklight_bot.config.event_roster
 
     try:
-        await assign_role(member, guild.get_role(SQUAD_LEADER_ROLE_ID))
+        await assign_role(member, conf.sl_role)
     except AlreadyHasRole:
         await ctx.respond(f'You\'ve already volunteered to be a squad leader!', flags=MessageFlag.EPHEMERAL)
         return
 
-    await ctx.respond(f'{ctx.author.mention} has volunteered to be a squad leader. Don\'t forget to place rally points!', flags=MessageFlag.EPHEMERAL)
+    await ctx.respond(f'{ctx.author.mention} has volunteered to lead a squad. Don\'t forget to place rally points!')
 
 
-@lightbulb.command('rescind-sl', 'I don\'t want to be a squad leader anymore. Take away my role', guilds=GUILDS)
+@lightbulb.command('rescind-sl', 'I don\'t want to be a squad leader anymore. Take away my role', guilds=[darklight_bot.config.guild])
 @lightbulb.implements(commands.SlashCommand)
 async def rescind_sl(ctx: lightbulb.context.Context) -> None:
     guild: hikari.Guild = ctx.get_guild()
     member: hikari.Member = guild.get_member(ctx.author.id)
+    conf: EventSettings = darklight_bot.config.event_roster
 
-    if has_role(member, SQUAD_LEADER_ROLE_ID):
-        await remove_roles(member, SQUAD_LEADER_ROLE_ID)
+    if has_role(member, conf.sl_role):
+        await remove_roles(member, conf.sl_role)
         await ctx.respond(f'{ctx.author.mention} no longer wants to lead a squad.')
     else:
         await ctx.respond(f'You\'re not a squad leader!', flags=MessageFlag.EPHEMERAL)
 
 
-@lightbulb.command('show-roster', 'Show roster for the next event', guilds=GUILDS, ephemeral=True)
+@lightbulb.command('roster', 'Show roster for the next event', guilds=[darklight_bot.config.guild], ephemeral=True)
 @lightbulb.implements(commands.SlashCommand)
 async def roster(ctx: lightbulb.context.Context) -> None:
     guild: hikari.Guild = ctx.get_guild()
     embed = hikari.Embed(title='Event Roster')
     members = [ m[1] for m in guild.get_members().items() ]
-    squad_leaders = set(m for m in members if has_role(m, guild.get_role(SQUAD_LEADER_ROLE_ID)))
+    conf: EventSettings = darklight_bot.config.event_roster
+    squad_leaders = set(m for m in members if has_role(m, guild.get_role(conf.sl_role)))
 
     # TODO: REFACTOR THIS MESS!
 
     # AXIS
-    axis_members = [ m for m in members if has_role(m, guild.get_role(AXIS_ROLE_ID)) ]
+    axis_members = [ m for m in members if has_role(m, guild.get_role(conf.axis_role)) ]
 
     axis_squad_leaders = squad_leaders.intersection(axis_members)
     if axis_squad_leaders:
@@ -144,7 +216,7 @@ async def roster(ctx: lightbulb.context.Context) -> None:
                     inline=True)
 
     # ALLIES
-    allied_members = [ m for m in members if has_role(m, guild.get_role(ALLIES_ROLE_ID)) ]
+    allied_members = [ m for m in members if has_role(m, guild.get_role(conf.allied_role)) ]
 
     allied_squad_leaders = squad_leaders.intersection(allied_members)
 
@@ -167,24 +239,6 @@ async def roster(ctx: lightbulb.context.Context) -> None:
     await ctx.respond(embed=embed)
 
 
-# @plugin.listener(hikari.StartedEvent)
-# async def on_ready(_: hikari.StartedEvent):
-#     board_channel = await plugin.bot.rest.fetch_channel(ROSTER_CHANNEL)
-
-#     @tasks.task(s=5, pass_app=True)
-#     async def update_roster_info(bot: lightbulb.BotApp) -> None:
-#         # Update servers channel
-#         board = BulletinBoard(bot)
-#         allies_embed = hikari.Embed(title='AXIS')
-#         axis_embed = hikari.Embed(title='ALLIES')
-
-#         board.add_embed(allies_embed)
-#         board.add_embed(axis_embed)
-#         await board.push_to_channel(board_channel)
-
-    # update_roster_info.start()
-
-
 def load(bot: lightbulb.BotApp) -> None:
     bot.add_plugin(plugin)
     bot.command(enlist)
@@ -195,9 +249,15 @@ def load(bot: lightbulb.BotApp) -> None:
 
 
 def unload(bot: lightbulb.BotApp) -> None:
-    bot.remove_command(bot.get_slash_command('enlist'))
-    bot.remove_command(bot.get_slash_command('leave-team'))
-    bot.remove_command(bot.get_slash_command('reserve-sl'))
-    bot.remove_command(bot.get_slash_command('rescind-sl'))
-    bot.remove_command(bot.get_slash_command('roster'))
+    remove_commands = ['enlist',
+                       'leave-team',
+                       'reserve-sl',
+                       'rescind-sl',
+                       'roster']
+
+    for cmd_name in remove_commands:
+        command = bot.get_slash_command(cmd_name)
+        if command is not None:
+            bot.remove_command(command)
+
     bot.remove_plugin(plugin)

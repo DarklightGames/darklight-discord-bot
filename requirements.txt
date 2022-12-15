@@ -5,10 +5,12 @@ attrs==22.1.0
 charset-normalizer==2.1.1
 colorama==0.4.6
 colorlog==6.7.0
+dacite==1.6.0
 frozenlist==1.3.3
-hikari==2.0.0.dev112
-hikari-lightbulb==2.2.5
+hikari==2.0.0.dev113
+hikari-lightbulb==2.3.1
 idna==3.4
-multidict==6.0.2
+multidict==6.0.3
 netstruct==1.1.2
-yarl==1.8.1
+PyYAML==6.0
+yarl==1.8.2

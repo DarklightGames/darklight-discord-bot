@@ -5,3 +5,5 @@
 .venv
 secrets
 docker-compose.yaml
+config.dev.yaml
+config.prod.yaml

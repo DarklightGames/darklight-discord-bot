@@ -8,10 +8,11 @@ import lightbulb
 from lightbulb.ext import tasks
 
 import bot as darklight_bot
+from bot.config import ServerBrowserSettings
 from bot.utils import unreal_query
 
 
-plugin = lightbulb.Plugin('Servers')
+plugin = lightbulb.Plugin('ServerBrowser')
 
 
 class Server():
@@ -26,7 +27,7 @@ class Server():
         self.is_online: bool = False
 
     async def update(self) -> None:
-        self.info = await unreal_query.query(self.addr)
+        self.info: unreal_query.ServerInfo | None = await unreal_query.query(self.addr)
 
         if self.info:
             self.name = self.info.name
@@ -93,10 +94,11 @@ class BulletinBoard():
 
 @plugin.listener(hikari.StartedEvent)
 async def on_ready(_: hikari.StartedEvent):
-    servers = ServerCollection([ Server(s['addr'], s['name']) for s in darklight_bot.SERVERS])
-    board_channel = await plugin.bot.rest.fetch_channel(darklight_bot.SERVER_CHANNEL)
+    conf: ServerBrowserSettings = darklight_bot.config.server_browser
+    servers = ServerCollection([ Server((s.address, s.query_port), s.name) for s in conf.servers])
+    board_channel = await plugin.bot.rest.fetch_channel(conf.channel)
 
-    @tasks.task(s=darklight_bot.SERVER_QUERY_INTERVAL_SECONDS, pass_app=True)
+    @tasks.task(s=conf.query_interval, pass_app=True)
     async def update_server_info(bot: lightbulb.BotApp) -> None:
         """Fetches player counts from the game servers and updates bot's status."""
 
@@ -121,7 +123,10 @@ async def on_ready(_: hikari.StartedEvent):
                     embed.add_field(name=f'{status_emoji} {s.name}', 
                                     value=f'**Players**\t`{s.players} / {s.max_players}`\n**Map**\t`{map}`\n\u2800')
         else:
-            embed.description += '\nServers are down for maintenance...'
+            try:
+                embed.description += '\nServers are down for maintenance...'
+            except AttributeError:
+                return
 
         board.add_embed(embed)
         await board.push_to_channel(board_channel)

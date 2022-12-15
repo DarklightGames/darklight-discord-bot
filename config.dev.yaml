@@ -1,0 +1,23 @@
+guild: 1044732831710056639
+
+server_browser:
+    channel: 1046254795666751560
+    query_interval: 20
+    servers:
+        - name: 'Official Server #1'
+          address: '104.243.41.183'
+          query_port: 7758
+        - name: 'Official Server #2'
+          address: '104.243.41.183'
+          query_port: 7778
+        - name: 'Official Armored Server #1'
+          address: '104.243.41.183'
+          query_port: 7798
+        - name: 'Official Beta Server'
+          address: '104.243.41.183'
+          query_port: 7818
+
+event_roster:
+    axis_role: 1050774810529112175
+    allied_role: 1050774864136507462
+    sl_role: 1050774895019171860
