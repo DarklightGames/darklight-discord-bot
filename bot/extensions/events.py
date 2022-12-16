@@ -9,6 +9,7 @@ from functools import wraps
 import bot as darklight_bot
 import random
 from typing import Any, Sequence
+import datetime as dt
 
 
 plugin = lightbulb.Plugin('EventRoster')
@@ -184,14 +185,38 @@ async def rescind_sl(ctx: lightbulb.context.Context) -> None:
         await ctx.respond(f'You\'re not a squad leader!', flags=MessageFlag.EPHEMERAL)
 
 
-@lightbulb.command('roster', 'Show roster for the next event', guilds=[darklight_bot.config.guild], ephemeral=True)
+@lightbulb.command('event', 'Show roster for the next event', guilds=[darklight_bot.config.guild], ephemeral=True)
 @lightbulb.implements(commands.SlashCommand)
-async def roster(ctx: lightbulb.context.Context) -> None:
+async def event(ctx: lightbulb.context.Context) -> None:
     guild: hikari.Guild = ctx.get_guild()
-    embed = hikari.Embed(title='Event Roster')
     members = [ m[1] for m in guild.get_members().items() ]
     conf: EventSettings = darklight_bot.config.event_roster
     squad_leaders = set(m for m in members if has_role(m, guild.get_role(conf.sl_role)))
+
+    events: Sequence[hikari.ScheduledEvent] = await ctx.bot.rest.fetch_scheduled_events(guild)
+    embed = hikari.Embed(title='EVENT ROSTER', description='')
+    help: str = f'Commands:\n/enlist - to join a team.\n/leave-team - to quit your team\n/reserve-sl - to volunteer as a squad leader.\n/rescind-sl - to rescind your SL reservation.'
+    embed.set_footer(help)
+
+    # SET EVENT INFO
+    sorted_events: list[hikari.ScheduledEvent] = sorted(events, key=lambda x: x.start_time)
+    next_event: hikari.ScheduledEvent = next(filter(lambda e: e.status & (hikari.ScheduledEventStatus.SCHEDULED | hikari.ScheduledEventStatus.ACTIVE), 
+                                                              sorted_events), 
+                                                       None)
+
+    if next_event:
+        time_until_event: str = '<t:1671192000:R>'.format(time=int(next_event.start_time.timestamp()))
+        embed.title += f'- {next_event.name}'
+
+        if next_event.status & hikari.ScheduledEventStatus.SCHEDULED:
+            embed.description += f'\nEvent starts {time_until_event}'
+        elif next_event.status & hikari.ScheduledEventStatus.ACTIVE:
+            embed.description += f'\nEvent is underway!'
+
+        embed.url = 'https://discord.com/events/' + str(guild.id) + '/' + str(next_event.id)
+    else:
+        embed.description += 'No events are scheduled at the moment.'
+
 
     # TODO: REFACTOR THIS MESS!
 
@@ -211,9 +236,6 @@ async def roster(ctx: lightbulb.context.Context) -> None:
     else:
         axis_rest_text = '-NONE-'
 
-    embed.add_field(name='Axis', 
-                    value=f'```yaml\nSquad Leaders:\n{axis_squad_leaders_text}\n\nMembers:\n{axis_rest_text}\n\nTotal: {len(axis_members)}```', 
-                    inline=True)
 
     # ALLIES
     allied_members = [ m for m in members if has_role(m, guild.get_role(conf.allied_role)) ]
@@ -232,8 +254,25 @@ async def roster(ctx: lightbulb.context.Context) -> None:
     else:
         allied_rest_text = '-NONE-'
 
-    embed.add_field(name='Allies', 
-                    value=f'```yaml\nSquad Leaders:\n{allied_squad_leaders_text}\n\nMembers:\n{allied_rest_text}\n\nTotal: {len(allied_members)}```', 
+    axis_roster: str = f'\nSquad Leaders:\n{axis_squad_leaders_text}\n\nMembers:\n{axis_rest_text}'
+    allied_roster: str = f'\nSquad Leaders:\n{allied_squad_leaders_text}\n\nMembers:\n{allied_rest_text}' 
+
+    roster_diff: int = axis_roster.count('\n') - allied_roster.count('\n')
+    axis_padding: str = ''
+    allied_padding: str = ''
+    
+    if roster_diff < 0:
+        axis_padding = '\n' * abs(roster_diff)
+    elif roster_diff > 0:
+        allied_padding = '\n' * roster_diff
+
+
+    embed.add_field(name='AXIS', 
+                    value='```yaml' + axis_roster + axis_padding + f'\n\nTotal: {len(axis_members)}```', 
+                    inline=True)
+
+    embed.add_field(name='ALLIES', 
+                    value='```yaml' + allied_roster + allied_padding + f'\n\nTotal: {len(allied_members)}```',
                     inline=True)
 
     await ctx.respond(embed=embed)
@@ -245,7 +284,7 @@ def load(bot: lightbulb.BotApp) -> None:
     bot.command(leave_team)
     bot.command(reserve_sl)
     bot.command(rescind_sl)
-    bot.command(roster)
+    bot.command(event)
 
 
 def unload(bot: lightbulb.BotApp) -> None:
@@ -253,7 +292,7 @@ def unload(bot: lightbulb.BotApp) -> None:
                        'leave-team',
                        'reserve-sl',
                        'rescind-sl',
-                       'roster']
+                       'event']
 
     for cmd_name in remove_commands:
         command = bot.get_slash_command(cmd_name)

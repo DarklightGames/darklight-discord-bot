@@ -15,7 +15,7 @@ def create_bot() -> lightbulb.BotApp:
         token = f.read().strip()
 
     cache_settings = CacheSettings(components=CacheComponents.ALL)
-    intents = Intents.GUILDS | Intents.GUILD_MEMBERS
+    intents = Intents.GUILDS | Intents.GUILD_MEMBERS | Intents.GUILD_SCHEDULED_EVENTS
 
     # Create the bot instance
     bot = lightbulb.BotApp(token=token,
