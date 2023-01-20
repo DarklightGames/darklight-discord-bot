@@ -10,6 +10,7 @@ import bot as darklight_bot
 import random
 from typing import Any, Sequence
 import datetime as dt
+import logging
 
 
 plugin = lightbulb.Plugin('EventRoster')
@@ -278,6 +279,29 @@ async def event(ctx: lightbulb.context.Context) -> None:
     await ctx.respond(embed=embed)
 
 
+@lightbulb.add_checks(lightbulb.has_guild_permissions(hikari.Permissions.ADMINISTRATOR))
+@lightbulb.option('message', 'Bot message')
+@lightbulb.command('say', 'Say something in the current channel (admin only)', guilds=[darklight_bot.config.guild], ephemeral=True)
+@lightbulb.implements(commands.SlashCommand)
+async def say(ctx: lightbulb.context.Context) -> None:
+    instigator_log: str = f'Instigator: {ctx.author.username} ({ctx.author.id})'
+
+    channel: Any = ctx.get_channel()
+
+    if not isinstance(channel, hikari.TextableChannel):
+        logging.error(f'Say command was unable to fetch the channel. {instigator_log}')
+        return
+
+    try:
+        await channel.send(ctx.options.message)
+        logging.info(f'A message has been sent via the bot in channel #{channel.name}. {instigator_log}')
+    except Exception:
+        logging.error(f'An error has occured while sending a message. {instigator_log}', exc_info=True)
+        return
+
+    await ctx.respond(content='Message sent!')
+
+
 def load(bot: lightbulb.BotApp) -> None:
     bot.add_plugin(plugin)
     bot.command(enlist)
@@ -285,6 +309,7 @@ def load(bot: lightbulb.BotApp) -> None:
     bot.command(reserve_sl)
     bot.command(rescind_sl)
     bot.command(event)
+    bot.command(say)
 
 
 def unload(bot: lightbulb.BotApp) -> None:
@@ -292,7 +317,8 @@ def unload(bot: lightbulb.BotApp) -> None:
                        'leave-team',
                        'reserve-sl',
                        'rescind-sl',
-                       'event']
+                       'event',
+                       'say']
 
     for cmd_name in remove_commands:
         command = bot.get_slash_command(cmd_name)
