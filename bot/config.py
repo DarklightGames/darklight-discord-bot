@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import yaml
 import sys
 import logging
@@ -54,7 +56,7 @@ class ServerBrowserSettings:
 
     servers: list[Server]
     channel: int
-    query_interval: Optional[int] = 20
+    query_interval: float
 
 
 @dataclass
@@ -69,19 +71,19 @@ class Config:
         event_roster : Settings object for the event roster extension.
     """
     
-    guild: int = 0
-    server_browser: ServerBrowserSettings = None
-    event_roster: EventSettings = None
+    guild: int
+    server_browser: ServerBrowserSettings
+    event_roster: EventSettings
 
     @staticmethod
-    def load_from(path: str) -> Self:
+    def load_from(path: str) -> Config:
         """Loads config from a `yaml` file."""
         config: dict = {}
 
         try:
             with open(path, 'r') as config_file:
                 config = yaml.safe_load(config_file)
-        except yaml.parser.ParserError:
+        except yaml.YAMLError:
             logging.error('Failed to parse the configuration file')
             sys.exit(1)
         except FileNotFoundError:
