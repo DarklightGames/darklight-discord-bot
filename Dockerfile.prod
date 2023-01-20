@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1.2
+
+# Temporary production setup
+  
+ARG PYTHON_VERSION=3.11
+
+FROM python:${PYTHON_VERSION}-alpine
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+RUN apk update \
+    && apk add --no-cache --upgrade gcc musl-dev python3-dev
+
+COPY ./requirements.txt requirements.txt
+RUN echo uvloop >> requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache -r requirements.txt
+
+# Create the app user
+ENV APP_USER=app
+RUN addgroup -S $APP_USER && adduser -S $APP_USER -G $APP_USER
+
+# Copy the app files and link secrets
+ENV APP_HOME=/home/${APP_USER}/src
+WORKDIR $APP_HOME
+COPY . $APP_HOME
+RUN ln -s /run/secrets ${APP_HOME}/secrets
+RUN chown -R ${APP_USER}:${APP_USER} ${APP_HOME}
+USER $APP_USER
+
+CMD [ "python3", "-OO", "-m", "bot"]
