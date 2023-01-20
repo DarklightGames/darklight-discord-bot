@@ -5,3 +5,4 @@ __pycache__
 .venv
 secrets
 config.yaml
+settings.json
