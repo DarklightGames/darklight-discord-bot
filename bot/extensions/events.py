@@ -163,6 +163,12 @@ async def reserve_sl(ctx: lightbulb.context.Context) -> None:
     member: hikari.Member = guild.get_member(ctx.author.id)
     conf: EventSettings = darklight_bot.config.event_roster
 
+    on_team: bool = has_role(member, guild.get_role(conf.axis_role)) or has_role(member, guild.get_role(conf.allied_role))
+
+    if not on_team:
+        await ctx.respond(f'Join a team first! You can do this via the `/enlist` command.', flags=MessageFlag.EPHEMERAL)
+        return
+
     try:
         await assign_role(member, conf.sl_role)
     except AlreadyHasRole:
@@ -186,7 +192,7 @@ async def rescind_sl(ctx: lightbulb.context.Context) -> None:
         await ctx.respond(f'You\'re not a squad leader!', flags=MessageFlag.EPHEMERAL)
 
 
-@lightbulb.command('event', 'Show roster for the next event', guilds=[darklight_bot.config.guild], ephemeral=True)
+@lightbulb.command('event', 'Show the roster for the next event', guilds=[darklight_bot.config.guild], ephemeral=True)
 @lightbulb.implements(commands.SlashCommand)
 async def event(ctx: lightbulb.context.Context) -> None:
     guild: hikari.Guild = ctx.get_guild()
@@ -206,8 +212,8 @@ async def event(ctx: lightbulb.context.Context) -> None:
                                                        None)
 
     if next_event:
-        time_until_event: str = '<t:1671192000:R>'.format(time=int(next_event.start_time.timestamp()))
-        embed.title += f'- {next_event.name}'
+        time_until_event: str = '<t:{time}:R>'.format(time=int(next_event.start_time.timestamp()))
+        embed.title += f' - {next_event.name}'
 
         if next_event.status & hikari.ScheduledEventStatus.SCHEDULED:
             embed.description += f'\nEvent starts {time_until_event}'
